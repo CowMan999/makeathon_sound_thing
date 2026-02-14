@@ -20,6 +20,7 @@ Uses aubio for robust pitch detection.
 
 import numpy as np
 import aubio
+import scipy.signal
 
 # Standard pitch: A4 = 440 Hz. Note names in 12-TET (equal temperament).
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -66,7 +67,7 @@ def freq_to_note_and_octave(freq: float) -> tuple[str, int] | None:
 
 def detect_pitch_from_buffer(
     samples: np.ndarray,  # mono waveform: one float or int per time step (length = duration * sample_rate)
-    sample_rate: int = 16000,  # same rate your Pi mic used when recording
+    sample_rate: int = 8000,  # same rate your Pi mic used when recording
     hop_size: int = 512,
     method: str = "yin",
 ) -> tuple[float | None, str | None, int | None]:
@@ -127,71 +128,11 @@ def detect_all_pitches_from_buffer(
 
     freqs = np.array(freqs_list, dtype=np.float32)
     pitch_classes = np.array([freq_to_pitch_class(f) if f > 0 else -1 for f in freqs_list], dtype=np.int32)
+
+    if len(pitch_classes) > 5:
+        pitch_classes = scipy.signal.medfilt(pitch_classes,kernel_size=5).astype(np.int32)
+
     return freqs, pitch_classes
-
-# def detect_pitch_from_file(
-#     path: str,
-#     hop_size: int = 512,  # samples per analysis frame; smaller = more responsive, more CPU
-#     sample_rate: int = 44100,  # must match how the file was recorded (e.g. Pi mic rate)
-#     method: str = "yin",  # "yin" = classic, robust; "yinfft" = faster; "schmitt" = another option
-# ) -> tuple[float | None, str | None, int | None]:
-#     """
-#     Detect dominant pitch from an audio file.
-
-#     Returns:
-#         (frequency_hz, note_name, octave) or (None, None, None) if no clear pitch.
-#     """
-#     src = aubio.source(path, sample_rate, hop_size)
-#     # 4096 = window size (samples we look at at once). Bigger = more frequency resolution.
-#     pitch_detector = aubio.pitch(method, 4096, hop_size, sample_rate)
-#     pitch_detector.set_unit("Hz")  # we want frequency in Hz, not MIDI
-#     pitch_detector.set_silence(-40)  # below this dB we treat as silence (no pitch)
-
-#     while True:
-#         samples, read = src()  # "samples" here = one chunk of the waveform (hop_size numbers)
-#         pitch = pitch_detector(samples)
-#         if read < hop_size:
-#             break
-
-#     freq = float(pitch) if pitch > 0 else None
-#     if freq is None:
-#         return None, None, None
-#     result = freq_to_note_and_octave(freq)
-#     if result is None:
-#         return freq, None, None
-#     note, octave = result
-#     return freq, note, octave
-
-# def detect_all_pitches_from_file(
-#     path: str,
-#     hop_size: int = 512,
-#     sample_rate: int = 44100,
-#     method: str = "yin",
-# ) -> tuple[np.ndarray, np.ndarray]:
-#     """
-#     Detect pitch at every frame; export as numpy arrays for key-finding etc.
-
-#     Returns:
-#         freqs: 1D array of frequency (Hz) per frame; 0.0 where no pitch.
-#         pitch_classes: 1D array of pitch class 0-11 (C=0..B=11) per frame; -1 where no pitch.
-#     """
-#     src = aubio.source(path, sample_rate, hop_size)
-#     pitch_detector = aubio.pitch(method, 4096, hop_size, sample_rate)
-#     pitch_detector.set_unit("Hz")
-#     pitch_detector.set_silence(-40)
-
-#     freqs_list: list[float] = []
-#     while True:
-#         samples, read = src()
-#         pitch = pitch_detector(samples)
-#         f = float(pitch) if pitch > 0 else 0.0
-#         freqs_list.append(f)
-#         if read < hop_size:
-#             break
-
-#     freqs = np.array(freqs_list, dtype=np.float32)
-#     pitch_classes = np.array([freq_to_pitch_class(f) if f > 0 else -1 for f in freqs_list], dtype=np.int32)
-#     return freqs, pitch_classes
 
 
 def format_pitch(freq: float | None, note: str | None, octave: int | None) -> str:
