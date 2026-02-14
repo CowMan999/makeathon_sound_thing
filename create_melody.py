@@ -8,8 +8,9 @@ Take pitch arrays from pitch_detection (numpy only) and find key, then generate 
 
 import numpy as np
 import pretty_midi
+import aubio
+import scipy
 
-from makeuoft import pitch_detection
 from pitch_detection import (
     NOTE_NAMES,
     NOTE_TO_PC,
@@ -29,7 +30,9 @@ def find_key(pitch_classes: np.ndarray) -> str:
     Pitch data must come from pitch_detection; this function only does key finding.
     """
     valid = pitch_classes[pitch_classes >= 0]
-    h = np.bincount(valid, minlength=12)  # we want the quantity of notes played
+    if len(valid) == 0:
+        return "C"
+    h = np.bincount(valid, minlength=12).astype(np.float32)  # we want the quantity of notes played
     h /= np.sum(h)  
 
     major_profile = np.array([
@@ -49,7 +52,7 @@ def find_key(pitch_classes: np.ndarray) -> str:
         if score > best_score:
             best_score = score
             result = i
-    return pitch_detection.NOTE_NAMES[result]
+    return NOTE_NAMES[result]
 
 
 def key_name_to_root_pc(key_name: str) -> int:
@@ -164,8 +167,8 @@ def _add_swing_drum_pattern(
     start_time: float,
     num_bars: int,
     tempo: float = 120,
-    velocity_kick: int = 90,
-    velocity_snare: int = 80,
+    velocity_kick: int = 80,
+    velocity_snare: int = 70,
     velocity_hihat: int = 70,
 ) -> None:
     """Add a simple swing pattern: kick 1&3, snare 2&4, hi-hat 8ths with swing."""
@@ -233,7 +236,7 @@ def create_melody(
     sample_rate: int = 16000,
     hop_size: int = 512,
     fixed_note_duration: float | None = None,
-    velocity: int = 80,
+    velocity: int = 105,
     program: int = 0,
     base_octave: int = 4,
     tempo: float = 120,
@@ -277,7 +280,7 @@ def create_melody(
     bar_duration = 4 * beat
     min_duration = 0.12
 
-    melody_inst = pretty_midi.Instrument(program=program)
+    melody_inst = pretty_midi.Instrument(program=1)
     chord_inst = pretty_midi.Instrument(program=4)  # electric piano / chord
     drum_inst = pretty_midi.Instrument(program=0, is_drum=True)
 
