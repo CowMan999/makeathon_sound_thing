@@ -367,6 +367,34 @@ def create_melody(
     pm.instruments.append(melody_inst)
     pm.instruments.append(chord_inst)
     pm.instruments.append(drum_inst)
+
+    # Always write a .mid file
+    if not output_path.lower().endswith(".mid"):
+        output_path = output_path.rstrip("/\\") + ".mid"
     pm.write(output_path)
     return pm
-    
+
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) >= 2:
+        # Create from audio file: python create_melody.py audio.wav [output.mid]
+        from pitch_detection import detect_all_pitches_from_buffer
+        try:
+            import soundfile as sf
+            audio, sr = sf.read(sys.argv[1])
+            if audio.ndim > 1:
+                audio = audio.mean(axis=1)
+            _, pitch_classes = detect_all_pitches_from_buffer(audio, sample_rate=sr)
+        except Exception as e:
+            print("Need soundfile to load audio:", e)
+            sys.exit(1)
+        out = sys.argv[2] if len(sys.argv) > 2 else "melody.mid"
+    else:
+        # No args: write a short demo melody to melody.mid
+        pitch_classes = np.array([0, 2, 4, 5, 7, 7, 5, 4, 2, 0, -1, 4, 5, 7, 9], dtype=np.int32)
+        out = "melody.mid"
+
+    create_melody(pitch_classes, out, sample_rate=8000)
+    print(f"Wrote {out}")
