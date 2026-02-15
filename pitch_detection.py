@@ -81,7 +81,7 @@ def detect_pitch_from_buffer(
         samples = samples.astype(np.float32) / (np.iinfo(samples.dtype).max if np.issubdtype(samples.dtype, np.integer) else 1.0)
     pitch_detector = aubio.pitch(method, 4096, hop_size, sample_rate)
     pitch_detector.set_unit("Hz")
-    pitch_detector.set_silence(-40)
+    pitch_detector.set_silence(-30)
 
     pitch = 0.0
     # slide over the buffer in chunks of hop_size; last chunk's pitch is what we return
@@ -117,7 +117,7 @@ def detect_all_pitches_from_buffer(
         )
     pitch_detector = aubio.pitch(method, 4096, hop_size, sample_rate)
     pitch_detector.set_unit("Hz")
-    pitch_detector.set_silence(-40)
+    pitch_detector.set_silence(-30)
 
     freqs_list: list[float] = []
     for start in range(0, len(samples) - hop_size, hop_size):

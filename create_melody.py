@@ -161,6 +161,14 @@ def _add_chord(
             pretty_midi.Note(velocity=velocity, pitch=midi_note, start=start, end=start + duration)
         )
 
+def get_nearest_musical_duration(duration, beat_seconds):
+    """Snaps a duration to the closest standard musical value."""
+    # Multipliers: 1/4 (16th), 1/2 (8th), 1 (Quarter), 2 (Half), 4 (Whole)
+    multipliers = [0.25, 0.5, 1.0, 2.0, 4.0]
+    allowed_durations = [m * beat_seconds for m in multipliers]
+    
+    # Find the closest duration from our list
+    return min(allowed_durations, key=lambda x: abs(x - duration))
 
 def _add_swing_drum_pattern(
     drum_inst: pretty_midi.Instrument,
@@ -252,6 +260,13 @@ def create_melody(
     Pass sample_rate (and hop_size) so note lengths are derived from how long you held each pitch.
     """
     pm = pretty_midi.PrettyMIDI()
+    seconds_per_beat = 60.0 / tempo
+    whole_note = seconds_per_beat * 4
+    half_note = seconds_per_beat * 2
+    quarter_note = seconds_per_beat
+    eighth_note = seconds_per_beat / 2
+    sixteenth_note = seconds_per_beat / 4
+    bar_duration = seconds_per_beat * 4
     key_name = find_key(pitch_classes)
     key_root_pc = key_name_to_root_pc(key_name)
 
@@ -285,13 +300,32 @@ def create_melody(
     drum_inst = pretty_midi.Instrument(program=0, is_drum=True)
 
     # 2) Add the registered melody (your input, with your note lengths)
+    events = [e for e in events if e[2] > 0.1] # Ignore notes shorter than 0.1 seconds
+    current_grid_time = 0.0
     for pc, start, duration in events:
-        duration = max(min_duration, duration)
-        midi_note = (base_octave + 1) * 12 + pc
+        if duration < 0.12: 
+            continue
+        q_start = round(start / sixteenth_note) * sixteenth_note
+        q_start += 0.02
+        q_start = max(q_start, current_grid_time)
+        
+        q_duration = get_nearest_musical_duration(duration, seconds_per_beat)
+        
+        # C. Snap the pitch to the detected key (optional: steps=0 just forces it into the scale)
+        new_pc, octave_offset = transpose_note_up_scale_degrees(pc, key_root_pc, steps=0)
+        
+        midi_note = (base_octave + 1 + octave_offset) * 12 + new_pc
         midi_note = max(0, min(127, midi_note))
+        
         melody_inst.notes.append(
-            pretty_midi.Note(velocity=velocity, pitch=midi_note, start=start, end=start + duration)
+            pretty_midi.Note(
+                velocity=velocity, 
+                pitch=midi_note, 
+                start=q_start, 
+                end=q_start + q_duration
+            )
         )
+        current_grid_time = q_start + q_duration
 
     # 3) Last 4 notes, up 2 scale degrees (same lengths), placed after the last note
     last_four = events[-4:] if len(events) >= 4 else events
