@@ -100,37 +100,40 @@ def detect_pitch_from_buffer(
 
 def detect_all_pitches_from_buffer(
     samples: np.ndarray,
-    sample_rate: int = 16000,
+    sample_rate: int = 8000,
     hop_size: int = 512,
     method: str = "yin",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Detect pitch at every frame over a buffer; export as numpy arrays.
-
-    Returns:
-        freqs: 1D array of frequency (Hz) per frame; 0.0 where no pitch.
-        pitch_classes: 1D array of pitch class 0-11 per frame; -1 where no pitch.
-    """
     if samples.dtype != np.float32:
         samples = samples.astype(np.float32) / (
             np.iinfo(samples.dtype).max if np.issubdtype(samples.dtype, np.integer) else 1.0
         )
+    
     pitch_detector = aubio.pitch(method, 4096, hop_size, sample_rate)
     pitch_detector.set_unit("Hz")
-    pitch_detector.set_silence(-30)
+    
+    # FIX 1: Set silence higher to ignore background room noise
+    pitch_detector.set_silence(-30) 
 
     freqs_list: list[float] = []
     for start in range(0, len(samples) - hop_size, hop_size):
         chunk = samples[start : start + hop_size]
         pitch = pitch_detector(chunk)
         f = float(pitch) if pitch > 0 else 0.0
+        
+        # FIX 2: Human Hum Gate (Ignore rumble below 80Hz / Pitch Class 0 artifacts)
+        if f < 80.0:
+            f = 0.0
+            
         freqs_list.append(f)
 
     freqs = np.array(freqs_list, dtype=np.float32)
     pitch_classes = np.array([freq_to_pitch_class(f) if f > 0 else -1 for f in freqs_list], dtype=np.int32)
 
+    # FIX 3: Median Filter (Removes single-frame glitches/blips)
+    import scipy.signal
     if len(pitch_classes) > 5:
-        pitch_classes = scipy.signal.medfilt(pitch_classes,kernel_size=5).astype(np.int32)
+        pitch_classes = scipy.signal.medfilt(pitch_classes, kernel_size=5).astype(np.int32)
 
     return freqs, pitch_classes
 

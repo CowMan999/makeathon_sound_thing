@@ -91,9 +91,9 @@ def transpose_note_up_scale_degrees(
 
 def pitch_classes_to_note_events(
     pitch_classes: np.ndarray,
-    sample_rate: int = 16000,
+    sample_rate: int = 8000,
     hop_size: int = 512,
-    silence_frames: int = 2
+    silence_frames: int = 1
 ) -> list[tuple[int, float, float]]:
     """
     Convert a per-frame pitch-class array into (pitch_class, start_time, duration) notes.
@@ -148,7 +148,7 @@ def _add_chord(
     start: float,
     duration: float,
     base_midi: int = 60,
-    velocity: int = 70,
+    velocity: int = 55,
 ) -> None:
     """Add a triad (root, third, fifth) to the instrument."""
     third = 3 if is_minor else 4
@@ -175,16 +175,16 @@ def _add_swing_drum_pattern(
     start_time: float,
     num_bars: int,
     tempo: float = 120,
-    velocity_kick: int = 80,
-    velocity_snare: int = 70,
-    velocity_hihat: int = 70,
+    velocity_kick: int = 70,
+    velocity_snare: int = 60,
+    velocity_hihat: int = 60,
 ) -> None:
     """Add a simple swing pattern: kick 1&3, snare 2&4, hi-hat 8ths with swing."""
     beat_duration = 60.0 / tempo
     bar_duration = 4 * beat_duration
     eighth = beat_duration / 2
     # Swing: second 8th of each beat is delayed (roughly 2:1 ratio)
-    swing_shift = eighth * 0.6  # delay the "and" of each beat
+    swing_shift = eighth * 0.33  # delay the "and" of each beat
 
     KICK = 36
     SNARE = 38
@@ -241,10 +241,10 @@ def create_melody(
     pitch_classes: np.ndarray,
     output_path: str = "melody.mid",
     *,
-    sample_rate: int = 16000,
+    sample_rate: int = 8000,
     hop_size: int = 512,
     fixed_note_duration: float | None = None,
-    velocity: int = 105,
+    velocity: int = 115,
     program: int = 0,
     base_octave: int = 4,
     tempo: float = 120,
@@ -300,12 +300,13 @@ def create_melody(
     drum_inst = pretty_midi.Instrument(program=0, is_drum=True)
 
     # 2) Add the registered melody (your input, with your note lengths)
-    events = [e for e in events if e[2] > 0.1] # Ignore notes shorter than 0.1 seconds
+    events = [e for e in events if e[2] > 0.12] # Ignore notes shorter than 0.1 seconds
+    first_note_start = events[0][1]
     current_grid_time = 0.0
     for pc, start, duration in events:
-        if duration < 0.12: 
-            continue
-        q_start = round(start / sixteenth_note) * sixteenth_note
+        # If the first note is a '0' and it's super short, it's just mic noise.
+        adjusted_start = start - first_note_start
+        q_start = round(adjusted_start / eighth_note) * eighth_note
         q_start += 0.02
         q_start = max(q_start, current_grid_time)
         
